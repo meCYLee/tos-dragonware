@@ -118,7 +118,7 @@ function createCloudClient(config,sdk){
   signIn:(email,password)=>wrap(base.auth.signInWithPassword({email,password})),
   sendPasswordReset:(email,redirectTo)=>wrap(base.auth.resetPasswordForEmail(email,{redirectTo})),
   updatePassword:password=>wrap(base.auth.updateUser({password})),signOut:()=>wrap(base.auth.signOut()),
-  async fetchCollection(userId){const result=await wrap(base.from('user_crafts').select('craft_key,status,updated_at').eq('user_id',userId));if(result.error)return result;return {data:(result.data||[]).filter(r=>typeof r?.craft_key==='string'&&['owned','unowned'].includes(r.status)).map(r=>({craftKey:r.craft_key,status:r.status,updatedAt:r.updated_at})),error:null}},
+  async fetchCollection(userId){const rows=[],pageSize=1000;for(let start=0;;start+=pageSize){const result=await wrap(base.from('user_crafts').select('craft_key,status,updated_at').eq('user_id',userId).order('craft_key',{ascending:true}).range(start,start+pageSize-1));if(result.error)return result;const page=result.data||[];rows.push(...page);if(page.length<pageSize)break}return {data:rows.filter(r=>typeof r?.craft_key==='string'&&['owned','unowned'].includes(r.status)).map(r=>({craftKey:r.craft_key,status:r.status,updatedAt:r.updated_at})),error:null}},
   upsertCraft:(userId,craftKey,status)=>wrap(base.from('user_crafts').upsert({user_id:userId,craft_key:craftKey,status},{onConflict:'user_id,craft_key'})),
   upsertCrafts:(userId,rows)=>wrap(base.from('user_crafts').upsert(rows.map(row=>({user_id:userId,craft_key:row.craftKey,status:row.status})),{onConflict:'user_id,craft_key'})),
   deleteCraft:(userId,craftKey)=>wrap(base.from('user_crafts').delete().eq('user_id',userId).eq('craft_key',craftKey))
