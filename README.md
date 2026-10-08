@@ -20,24 +20,8 @@
 
 ## 使用方式
 
-直接開啟 `index.html` 即可瀏覽。帳號與跨裝置同步使用 Supabase；尚未設定時會保持停用，圖鑑瀏覽不受影響。設定步驟請見 [`SUPABASE_SETUP.md`](SUPABASE_SETUP.md)。
-
+直接開啟 `index.html` 即可瀏覽。帳號與跨裝置同步使用 Supabase；尚未設定時會保持停用，圖鑑瀏覽不受影響。
 登入後，收藏會同步至自己的 Supabase 帳號；瀏覽器同時保留帳號專屬快取與離線待辦。JSON 匯出仍可作為額外備份。
-
-## 使用 GitHub Pages 發布
-
-1. 在 GitHub 建立一個新的公開 Repository，例如 `tos-dragonware`。
-2. 將 `index.html` 和本 `README.md` 上傳到 Repository 根目錄。
-3. 開啟 Repository 的 **Settings → Pages**。
-4. 在 **Build and deployment** 將 Source 設為 **Deploy from a branch**。
-5. Branch 選擇 **main**，資料夾選擇 **/(root)**，然後按下 **Save**。
-6. 發布完成後，網站網址通常為：
-
-   ```text
-   https://你的GitHub帳號.github.io/tos-dragonware/
-   ```
-
-從本機版改用公開網址時，瀏覽器會視為不同網站，因此請先從本機版匯出收藏，再到公開版匯入。
 
 ## 未來更新資料
 
@@ -47,8 +31,6 @@
 - 龍刻詳情畫面：確認名稱、模式、技能與裝備條件
 - 官方更新公告或可靠的資料來源
 
-更新完成後，只要在 GitHub Repository 中替換 `index.html` 並提交變更，GitHub Pages 就會重新發布網站。既有龍刻會保留穩定的收藏識別碼，讓舊的收藏備份可以繼續使用。
-
 ## 資料與圖片來源
 
 主要資料整理自：
@@ -57,35 +39,22 @@
 - [hiteku 武裝龍刻搜尋器](https://hiteku.github.io/tosCrafts/)
 - 使用者提供的遊戲背包畫面
 
-部分同名龍刻的不同模式共用同一張圖片。實際技能、取得方式、分數門檻及遊戲調整請以遊戲內最新資訊為準。
-
 ## 隱私提醒
 
 - 影片會在瀏覽器本機處理，不會由本網站上傳到伺服器。
 - 請勿將原始遊戲錄影、帳號畫面或個人收藏備份提交到公開 Repository。
 - 收藏備份可能反映個人遊戲進度，分享前請自行確認內容。
 - 雲端只保存使用者修改過的龍刻識別碼與收藏狀態；資料表以 Row Level Security 隔離帳號。
-- 網頁只可放 Project URL 與 Publishable key，不得放 service role key、secret key、資料庫密碼或 SMTP 密碼。
-
+  
 ## 專案檔案
 
 ```text
 index.html  # 完整網站，包含 HTML、CSS、JavaScript 與圖鑑資料
 README.md   # 專案說明
-SUPABASE_SETUP.md # 帳號與雲端同步設定步驟
 ```
 
 ## 技術說明
 
 - 純 HTML、CSS 與 JavaScript
-- 原始資料由 `python3 work/build.py` 產生單一 `index.html`
 - 登入與收藏同步使用 Supabase Auth/Postgres
 - 離線快取使用帳號隔離的 `localStorage`
-- 可直接部署至 GitHub Pages 等靜態網站服務
-
-## 部署順序
-
-1. 先依 [`SUPABASE_SETUP.md`](SUPABASE_SETUP.md) 建立 Supabase 並執行資料表設定。
-2. 填入公開的 Project URL 與 Publishable key，重新產生 `index.html`。
-3. 發布到 GitHub Pages，再把正式網址加入 Supabase Site URL 與 Redirect URLs。
-4. 以兩個測試帳號完成權限及跨裝置驗證。
