@@ -46,7 +46,7 @@ dialog{width:min(570px,calc(100% - 32px));max-height:85dvh;padding:0;border:1px 
 <section class="stats" aria-label="收藏進度"><div><span class="stat-label">已收錄龍刻</span><strong class="stat-value">3,894</strong></div><div><span class="stat-label">我的收藏</span><strong class="stat-value" id="owned-total">0</strong></div><div><span id="progress-label" class="progress-label"></span><progress id="progress" value="0" max="3894" aria-labelledby="progress-label"></progress></div></section>
 <section aria-label="龍刻圖鑑">
 <div class="toolbar"><div id="filters" class="filters" role="group" aria-label="圖鑑分類"></div><label class="search"><span class="sr-only">搜尋編號、名稱、技能或角色</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search" type="search" placeholder="搜尋編號、名稱、技能、角色…" autocomplete="off"></label></div>
-<div class="collection-tools"><label for="sort-order">編號排序<select id="sort-order"><option value="id-asc">編號由小到大</option><option value="id-desc">編號由大到小</option></select></label><label for="mode">龍刻模式<select id="mode"><option value="全部">全部模式</option></select></label><label for="ownership">收藏狀態<select id="ownership"><option value="全部">全部</option><option>已擁有</option><option>未擁有</option><option>待確認</option></select></label><label for="image-status">圖片狀態<select id="image-status"><option value="全部">全部圖片</option><option value="待補">圖片待補（0）</option><option value="已配對">已有配圖</option></select></label><div class="backup"><button class="backup-button" id="export" type="button">匯出備份 ↓</button><button class="backup-button" id="import-button" type="button">匯入備份 ↑</button><input type="file" id="import-file" accept="application/json,.json" hidden></div></div>
+<div class="collection-tools"><label for="sort-order">編號排序<select id="sort-order"><option value="id-asc">編號由小到大</option><option value="id-desc">編號由大到小</option></select></label><label for="mode">龍刻模式<select id="mode"><option value="全部">全部模式</option></select></label><label for="ownership">收藏狀態<select id="ownership"><option value="全部">全部</option><option>已擁有</option><option>未擁有</option></select></label><label for="image-status">圖片狀態<select id="image-status"><option value="全部">全部圖片</option><option value="待補">圖片待補（0）</option><option value="已配對">已有配圖</option></select></label><div class="backup"><button class="backup-button" id="export" type="button">匯出備份 ↓</button><button class="backup-button" id="import-button" type="button">匯入備份 ↑</button><input type="file" id="import-file" accept="application/json,.json" hidden></div></div>
 <p class="save-note">收藏保存在此瀏覽器，不會同步到遊戲或其他裝置。更換瀏覽器、移動 HTML 檔或清除網站資料前，請先匯出備份。匯入時會合併收藏。</p><p class="message" id="message" role="status" aria-live="polite"></p>
 <div class="collection-heading"><h2 id="collection-title" tabindex="-1">全部龍刻</h2><span id="result-count" role="status" aria-live="polite" aria-atomic="true"></span></div><div class="grid" id="cards"></div><noscript><p>請啟用 JavaScript 以瀏覽圖鑑及記錄收藏。</p></noscript><nav class="pagination" aria-label="圖鑑分頁"><button type="button" id="previous">← 上一頁</button><span id="page-label"></span><button type="button" id="next">下一頁 →</button></nav>
 </section>
@@ -3932,6 +3932,7 @@ function createCloudClient(config,sdk){
   updatePassword:password=>wrap(base.auth.updateUser({password})),signOut:()=>wrap(base.auth.signOut()),
   async fetchCollection(userId){const result=await wrap(base.from('user_crafts').select('craft_key,status,updated_at').eq('user_id',userId));if(result.error)return result;return {data:(result.data||[]).filter(r=>typeof r?.craft_key==='string'&&['owned','unowned'].includes(r.status)).map(r=>({craftKey:r.craft_key,status:r.status,updatedAt:r.updated_at})),error:null}},
   upsertCraft:(userId,craftKey,status)=>wrap(base.from('user_crafts').upsert({user_id:userId,craft_key:craftKey,status},{onConflict:'user_id,craft_key'})),
+  upsertCrafts:(userId,rows)=>wrap(base.from('user_crafts').upsert(rows.map(row=>({user_id:userId,craft_key:row.craftKey,status:row.status})),{onConflict:'user_id,craft_key'})),
   deleteCraft:(userId,craftKey)=>wrap(base.from('user_crafts').delete().eq('user_id',userId).eq('craft_key',craftKey))
  };
 }
@@ -4047,7 +4048,7 @@ $('#cards').addEventListener('error',event=>{if(event.target.tagName==='IMG'){ev
  button.innerHTML=escapeHTML(value)+`<small>${(value==='全部'?items.length:items.filter(item=>item.kind===value).length).toLocaleString()}</small>`;
  button.addEventListener('click',()=>{kind=value;page=1;render();});$('#filters').append(button);
 });
-const modes=['龍紋','龍印','龍咒','龍符','龍玉','龍刃','龍璃','龍結','龍丸','龍弦','龍輝','待核對'];
+const modes=['龍紋','龍印','龍咒','龍符','龍玉','龍刃','龍璃','龍結','龍丸','龍弦','龍輝'];
 modes.forEach(mode=>{const option=document.createElement('option');option.value=mode;option.textContent=mode;$('#mode').append(option);});
 for(const id of ['search','mode','ownership','image-status','sort-order'])$('#'+id).addEventListener(id==='search'?'input':'change',()=>{page=1;render();});
 for(const [id,delta] of [['previous',-1],['next',1]])$('#'+id).addEventListener('click',()=>{page+=delta;render();$('#collection-title').focus();$('#collection-title').scrollIntoView({block:'start'});});
@@ -4072,7 +4073,7 @@ $('#import-file').addEventListener('change',async event=>{
   const data=readRecord(await file.text());if(data.app!=='tos-dragonware-collection')throw Error('不是本圖鑑的備份');
   const known=data.owned.filter(key=>validKeys.has(key)),knownUnowned=data.unowned.filter(key=>validKeys.has(key)),unknown=data.owned.length-known.length+data.unowned.length-knownUnowned.length;
   const previous={owned:new Set(owned),unowned:new Set(unowned)};known.forEach(key=>{owned.add(key);unowned.delete(key)});knownUnowned.forEach(key=>{unowned.add(key);owned.delete(key)});const saved=true;render();
-  if(globalThis.CloudController){for(const key of known)if(!previous.owned.has(key))await globalThis.CloudController.setCraft(key,'owned');for(const key of knownUnowned)if(!previous.unowned.has(key))await globalThis.CloudController.setCraft(key,'unowned')}
+  if(globalThis.CloudController){const changes=[];for(const key of known)if(!previous.owned.has(key))changes.push({craftKey:key,status:'owned'});for(const key of knownUnowned)if(!previous.unowned.has(key))changes.push({craftKey:key,status:'unowned'});if(changes.length)await globalThis.CloudController.setCrafts(changes)}
   announce(`已套用紀錄：擁有 ${known.length} 件、未擁有 ${knownUnowned.length} 件${unknown?'；略過 '+unknown+' 筆本版本未收錄的項目':''}。未出現在紀錄中的項目保持原狀。${saved?'已儲存。':'僅暫存，請匯出備份。'}`);
  }catch(error){announce('匯入失敗：'+error.message+'。原收藏紀錄未變更。');}
  finally{event.target.value='';}
@@ -4229,13 +4230,17 @@ function createCloudController({client,storage,ui,isOnline=()=>navigator.onLine,
   if(!state.migrated){await migrate(uid,version,fetched.data,state);state=storage.load(uid)}else{
    let record={version:2,owned:[],unowned:[]};for(const row of fetched.data)if(validKey(row.craftKey))record=applyStatus(record,row.craftKey,row.status);for(const m of state.pending)record=applyStatus(record,m.craftKey,m.status);app.replaceCollection(record);state.owned=record.owned;state.unowned=record.unowned;storage.save(uid,state);
   }
-  for(const mutation of [...storage.load(uid).pending]){if(userId!==uid||sessionVersion!==version)break;const result=mutation.status===null?await client.deleteCraft(uid,mutation.craftKey):await client.upsertCraft(uid,mutation.craftKey,mutation.status);if(!result.error){storage.acknowledge(uid,mutation.craftKey,mutation.sequence);uploaded++}}
+  const pending=[...storage.load(uid).pending],writes=pending.filter(m=>m.status!==null),deletes=pending.filter(m=>m.status===null);
+  if(typeof client.upsertCrafts==='function')for(let start=0;start<writes.length;start+=500){if(userId!==uid||sessionVersion!==version)break;const chunk=writes.slice(start,start+500),result=await client.upsertCrafts(uid,chunk);if(!result.error)for(const mutation of chunk){storage.acknowledge(uid,mutation.craftKey,mutation.sequence);uploaded++}}
+  else for(const mutation of writes){if(userId!==uid||sessionVersion!==version)break;const result=await client.upsertCraft(uid,mutation.craftKey,mutation.status);if(!result.error){storage.acknowledge(uid,mutation.craftKey,mutation.sequence);uploaded++}}
+  for(const mutation of deletes){if(userId!==uid||sessionVersion!==version)break;const result=await client.deleteCraft(uid,mutation.craftKey);if(!result.error){storage.acknowledge(uid,mutation.craftKey,mutation.sequence);uploaded++}}
   if(userId!==uid||sessionVersion!==version)return {status:'failed',uploaded,downloaded:0};const failed=storage.load(uid).pending.length>0;ui.setSyncStatus(failed?'failed':'synced',failed?'同步失敗，點擊重試':'已同步');return {status:failed?'failed':'synced',uploaded,downloaded:fetched.data.length};
  }
  function sync(){const uid=userId,version=sessionVersion;if(!uid)return Promise.resolve({status:'failed',uploaded:0,downloaded:0});const key=uid+':'+version;if(activeSyncs.has(key))return activeSyncs.get(key);const promise=runSync(uid,version).finally(()=>{if(activeSyncs.get(key)===promise)activeSyncs.delete(key)});activeSyncs.set(key,promise);return promise}
  async function setCraft(craftKey,status){if(!userId||!validKey(craftKey)){if(!userId)ui.open?.('signin');return}const record=applyStatus(app.getCollectionRecord(),craftKey,status);app.replaceCollection(record);const state=storage.load(userId);state.owned=record.owned;state.unowned=record.unowned;storage.save(userId,state);storage.enqueue(userId,craftKey,status);await sync('change')}
+ async function setCrafts(changes){if(!userId){ui.open?.('signin');return}let record=app.getCollectionRecord();const valid=[];for(const change of changes||[])if(validKey(change.craftKey)&&['owned','unowned',null].includes(change.status)){record=applyStatus(record,change.craftKey,change.status);valid.push(change)}app.replaceCollection(record);const state=storage.load(userId);state.owned=record.owned;state.unowned=record.unowned;storage.save(userId,state);for(const change of valid)storage.enqueue(userId,change.craftKey,change.status);await sync('bulk-change')}
  async function init(appBridge){app=appBridge;const result=await client.getSession();await establish(result.data?.session||null);client.onAuthStateChange((event,session)=>{if(event==='PASSWORD_RECOVERY')ui.open('update-password');establish(session)});if(globalThis.addEventListener)globalThis.addEventListener('online',()=>sync('online'));if(globalThis.document?.addEventListener)document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')sync('visible')})}
- return {init,setCraft,sync,isSignedIn:()=>!!userId};
+ return {init,setCraft,setCrafts,sync,isSignedIn:()=>!!userId};
 }
 globalThis.createCloudController=createCloudController;
 
