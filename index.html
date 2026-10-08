@@ -18,10 +18,29 @@ dialog{width:min(570px,calc(100% - 32px));max-height:85dvh;padding:0;border:1px 
 @media(max-width:1050px){.grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}}
 @media(max-width:720px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.card-body{padding:12px}.card h3{font-size:15px;min-height:44px}.own-button,.detail-button{font-size:10px}.art{height:116px}}
 @media(max-width:420px){.grid{grid-template-columns:1fr}.card-body{padding:14px}.card h3{font-size:17px;min-height:0}.own-button,.detail-button{font-size:12px}}
+
+.account-area{display:flex;align-items:center;gap:10px;margin-left:auto}.account-button,.auth-submit,.auth-links button{min-height:44px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--text);padding:8px 13px;font:inherit}.account-button:hover,.auth-submit:hover,.auth-links button:hover{border-color:var(--gold)}.cloud-status{font-size:12px;color:var(--muted);max-width:170px}.auth-form{width:min(420px,calc(100vw - 32px));padding:25px;display:grid;gap:10px;background:var(--panel);color:var(--text)}.auth-form label{font-size:13px;color:var(--muted)}.auth-form input{min-height:44px;padding:8px 11px;border:1px solid var(--line);border-radius:5px;background:#171c1c;color:var(--text);font:inherit}.auth-error{min-height:22px;color:#f0a4a4}.auth-links{display:flex;gap:8px;flex-wrap:wrap}.auth-links button{flex:1;background:transparent}.auth-submit{background:var(--gold);color:#262318;border-color:var(--gold)}@media(max-width:720px){header .nav{flex-wrap:wrap}.account-area{width:100%;margin-left:0}.cloud-status{flex:1}}
 </style>
-</head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js" defer></script></head>
 <body>
-<header><nav class="nav" aria-label="網站導覽"><div class="brand"><span class="brand-mark" aria-hidden="true"></span>神魔之塔 <span class="nav-note">TOWER OF SAVIORS</span></div><span class="nav-label">龍刻收藏圖鑑</span></nav></header>
+<header><nav class="nav" aria-label="網站導覽"><div class="brand"><span class="brand-mark" aria-hidden="true"></span>神魔之塔 <span class="nav-note">TOWER OF SAVIORS</span></div><span class="nav-label">龍刻收藏圖鑑</span><div class="account-area">
+ <button type="button" id="account-button" class="account-button">登入／註冊</button>
+ <span id="cloud-status" class="cloud-status" role="status" aria-live="polite" aria-atomic="true"></span>
+ <button type="button" id="retry-sync-button" class="account-button" hidden>重試同步</button>
+ <button type="button" id="signout-button" class="account-button" hidden>登出</button>
+</div>
+<dialog id="auth-dialog" aria-labelledby="auth-title" aria-describedby="auth-message">
+ <form id="auth-form" class="auth-form" novalidate>
+  <div class="modal-head"><h2 id="auth-title">登入帳號</h2><button type="button" id="auth-close" class="close" aria-label="關閉">×</button></div>
+  <p id="auth-message">登入後即可跨裝置同步收藏。</p>
+  <label for="auth-email">電子郵件</label><input id="auth-email" type="email" autocomplete="email" required>
+  <label for="auth-password">密碼</label><input id="auth-password" type="password" autocomplete="current-password" required minlength="6">
+  <p id="auth-error" class="auth-error" role="alert"></p>
+  <button id="auth-submit" class="auth-submit" type="submit">登入</button>
+  <div class="auth-links"><button type="button" data-auth-mode="signup">建立帳號</button><button type="button" data-auth-mode="forgot">忘記密碼</button><button type="button" data-auth-mode="signin" hidden>返回登入</button></div>
+ </form>
+</dialog>
+</nav></header>
 <main>
 <section class="hero" aria-labelledby="page-title"><div><h1 id="page-title">神魔之塔龍刻圖鑑</h1></div><div class="hero-art" aria-hidden="true"><svg viewBox="0 0 100 120" fill="none"><path d="M50 5 84 37 76 85 50 114 24 85 16 37Z" stroke="currentColor"/><path d="m50 5 17 39-17 70-17-70Zm-34 32 34 21 34-21M24 85l26-27 26 27" stroke="currentColor"/></svg></div></section>
 <section class="stats" aria-label="收藏進度"><div><span class="stat-label">已收錄龍刻</span><strong class="stat-value">3,894</strong></div><div><span class="stat-label">我的收藏</span><strong class="stat-value" id="owned-total">0</strong></div><div><span id="progress-label" class="progress-label"></span><progress id="progress" value="0" max="3894" aria-labelledby="progress-label"></progress></div></section>
@@ -3867,13 +3886,81 @@ dialog{width:min(570px,calc(100% - 32px));max-height:85dvh;padding:0;border:1px 
 }</script>
 <script>
 'use strict';
+const TOS_CLOUD_CONFIG=globalThis.TOS_CLOUD_CONFIG_OVERRIDE||{
+ url:'https://rnjmkcxqcksdcpjacaqb.supabase.co/rest/v1/',
+ publishableKey:'sb_publishable_rkwtpkW94ks_gT8LExnyow__pkfZHXA'
+};
+function getCloudConfig(){
+ const url=String(TOS_CLOUD_CONFIG.url||'').trim(),publishableKey=String(TOS_CLOUD_CONFIG.publishableKey||'').trim();
+ if(!url||!publishableKey||url.includes('YOUR_')||publishableKey.includes('YOUR_'))return {enabled:false,url:'',publishableKey:''};
+ let parsed;try{parsed=new URL(url)}catch(_){throw Error('Supabase 設定格式無效。')}
+ if(parsed.protocol!=='https:'||!parsed.hostname.endsWith('.supabase.co'))throw Error('Supabase 設定格式無效。');
+ const lowered=publishableKey.toLowerCase();
+ if(!publishableKey.startsWith('sb_publishable_')||lowered.includes('service_role')||lowered.includes('secret'))throw Error('只能使用 Supabase publishable key。');
+ return {enabled:true,url:parsed.origin,publishableKey};
+}
+globalThis.getCloudConfig=getCloudConfig;
+
+'use strict';
+const CloudStorage=(()=>{
+ const prefix='tos-dragonware-cloud:';
+ const empty=error=>({owned:[],unowned:[],pending:[],migrated:false,error:!!error});
+ const key=id=>prefix+encodeURIComponent(id);
+ function normalized(value){
+  if(!value||!Array.isArray(value.owned)||!Array.isArray(value.unowned)||!Array.isArray(value.pending))return empty(true);
+  return {owned:value.owned.filter(x=>typeof x==='string'),unowned:value.unowned.filter(x=>typeof x==='string'),pending:value.pending.filter(x=>x&&typeof x.craftKey==='string'&&['owned','unowned',null].includes(x.status)&&Number.isSafeInteger(x.sequence)),migrated:value.migrated===true,error:false};
+ }
+ function load(id){try{const raw=localStorage.getItem(key(id));return raw?normalized(JSON.parse(raw)):empty(false)}catch(_){return empty(true)}}
+ function save(id,state){const value=normalized({...state,pending:state.pending||[]});if(value.error)throw Error('收藏快取格式無效');localStorage.setItem(key(id),JSON.stringify({...value,error:undefined}));}
+ function enqueue(id,craftKey,status){if(typeof craftKey!=='string'||!['owned','unowned',null].includes(status))throw Error('收藏狀態無效');const state=load(id),sequence=(state.pending.reduce((n,x)=>Math.max(n,x.sequence),0)||0)+1;state.pending=state.pending.filter(x=>x.craftKey!==craftKey);const mutation={craftKey,status,sequence};state.pending.push(mutation);save(id,state);return mutation;}
+ function acknowledge(id,craftKey,sequence){const state=load(id);state.pending=state.pending.filter(x=>x.craftKey!==craftKey||x.sequence!==sequence);save(id,state);}
+ function clearSession(id){localStorage.removeItem(key(id));}
+ return {load,save,enqueue,acknowledge,clearSession};
+})();
+globalThis.CloudStorage=CloudStorage;
+
+'use strict';
+function createCloudClient(config,sdk){
+ if(!config?.enabled||!sdk?.createClient)throw Error('雲端同步目前無法使用。');
+ const base=sdk.createClient(config.url,config.publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+ const wrap=async promise=>{try{const result=await promise;return {data:result?.data??null,error:result?.error?{message:'請稍後重試。',recoverable:[401,403].includes(result.error.status),status:result.error.status}:null}}catch(_){return {data:null,error:{message:'無法連線，請稍後重試。',recoverable:true}}}};
+ return {
+  getSession:()=>wrap(base.auth.getSession()),onAuthStateChange:h=>base.auth.onAuthStateChange(h),
+  signUp:(email,password,redirectTo)=>wrap(base.auth.signUp({email,password,options:{emailRedirectTo:redirectTo}})),
+  signIn:(email,password)=>wrap(base.auth.signInWithPassword({email,password})),
+  sendPasswordReset:(email,redirectTo)=>wrap(base.auth.resetPasswordForEmail(email,{redirectTo})),
+  updatePassword:password=>wrap(base.auth.updateUser({password})),signOut:()=>wrap(base.auth.signOut()),
+  async fetchCollection(userId){const result=await wrap(base.from('user_crafts').select('craft_key,status,updated_at').eq('user_id',userId));if(result.error)return result;return {data:(result.data||[]).filter(r=>typeof r?.craft_key==='string'&&['owned','unowned'].includes(r.status)).map(r=>({craftKey:r.craft_key,status:r.status,updatedAt:r.updated_at})),error:null}},
+  upsertCraft:(userId,craftKey,status)=>wrap(base.from('user_crafts').upsert({user_id:userId,craft_key:craftKey,status},{onConflict:'user_id,craft_key'})),
+  deleteCraft:(userId,craftKey)=>wrap(base.from('user_crafts').delete().eq('user_id',userId).eq('craft_key',craftKey))
+ };
+}
+globalThis.createCloudClient=createCloudClient;
+
+'use strict';
+const CloudUI=(()=>{
+ let client=null,onSession=()=>{},mode='signin',opener=null,available=false;
+ const el=id=>document.getElementById(id);
+ const copy={signin:['登入帳號','登入'],signup:['建立帳號','建立帳號'],forgot:['重設密碼','寄送重設連結'],'update-password':['設定新密碼','儲存新密碼']};
+ function open(next='signin'){if(!available){el('cloud-status').focus?.();return}mode=next;opener=document.activeElement;const email=el('auth-email'),password=el('auth-password');el('auth-title').textContent=copy[mode][0];el('auth-submit').textContent=copy[mode][1];email.hidden=mode==='update-password';document.querySelector('label[for="auth-email"]').hidden=email.hidden;password.hidden=mode==='forgot';document.querySelector('label[for="auth-password"]').hidden=password.hidden;password.autocomplete=mode==='update-password'?'new-password':mode==='signup'?'new-password':'current-password';el('auth-error').textContent='';el('auth-message').textContent=mode==='forgot'?'輸入電子郵件，我們會寄送重設連結。':mode==='update-password'?'請輸入新的密碼。':'登入後即可跨裝置同步收藏。';document.querySelectorAll('[data-auth-mode]').forEach(b=>b.hidden=b.dataset.authMode===mode||(mode==='update-password'));el('auth-dialog').showModal();(email.hidden?password:email).focus()}
+ function close(){if(el('auth-dialog').open)el('auth-dialog').close()}
+ function setAccount(session){const user=session?.user;el('account-button').textContent=user?.email||'登入／註冊';el('signout-button').hidden=!user;el('account-button').dataset.signedIn=String(!!user)}
+ function setSyncStatus(status,message){el('cloud-status').dataset.status=status;el('cloud-status').textContent=message||'';el('retry-sync-button').hidden=status!=='failed'}
+ async function submit(event){event.preventDefault();const email=el('auth-email').value.trim(),password=el('auth-password').value,button=el('auth-submit');el('auth-error').textContent='';if((mode!=='update-password'&&!email)||(mode!=='forgot'&&!password)){el('auth-error').textContent='請完整填寫資料。';return}button.disabled=true;let result;if(mode==='signup')result=await client.signUp(email,password,location.href.split('#')[0]);else if(mode==='forgot')result=await client.sendPasswordReset(email,location.href.split('#')[0]);else if(mode==='update-password')result=await client.updatePassword(password);else result=await client.signIn(email,password);button.disabled=false;el('auth-password').value='';if(result.error){el('auth-error').textContent=mode==='signin'?'無法登入，請確認資料後重試。':'操作失敗，請稍後重試。';return}if(mode==='signup')el('auth-message').textContent='註冊完成，請前往信箱完成驗證。';else if(mode==='forgot')el('auth-message').textContent='若此信箱可使用，重設連結已寄出。';else if(mode==='update-password'){el('auth-message').textContent='密碼已更新。';setTimeout(close,500)}else close()}
+ function init(options){available=true;client=options.client;onSession=options.onSession||onSession;el('account-button').addEventListener('click',()=>el('account-button').dataset.signedIn==='true'?null:open('signin'));el('auth-close').addEventListener('click',close);el('auth-form').addEventListener('submit',submit);document.querySelectorAll('[data-auth-mode]').forEach(b=>b.addEventListener('click',()=>open(b.dataset.authMode)));el('retry-sync-button').addEventListener('click',()=>globalThis.CloudController?.sync('manual'));el('signout-button').addEventListener('click',async()=>{const result=await client.signOut();if(result.error){setSyncStatus('failed','登出失敗，請稍後重試');return}setAccount(null);onSession(null)});el('auth-dialog').addEventListener('close',()=>opener?.focus?.())}
+ function disabled(message='尚未設定雲端同步'){available=false;el('account-button').disabled=true;setSyncStatus('disabled',message)}
+ return {init,open,close,setAccount,setSyncStatus,disabled};
+})();
+globalThis.CloudUI=CloudUI;
+
+'use strict';
 const catalog=JSON.parse(document.querySelector('#catalog-data').textContent);
 const items=catalog.groups.flatMap(group=>group.variants.map(variant=>({...group,...variant})));
 const byKey=new Map(items.map(item=>[item.key,item]));
 const $=selector=>document.querySelector(selector);
 const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const storageKey='tos-dragonware-owned-v1';
-let owned=new Set(),unowned=new Set(),kind='全部',page=1,activeItem=null,opener=null,storageHealthy=true;
+let owned=new Set(),unowned=new Set(),kind='全部',page=1,activeItem=null,opener=null,storageHealthy=true,collectionEnabled=false;
 const pageSize=25;
 const validKeys=new Set(byKey.keys());
 function readRecord(raw){
@@ -3908,7 +3995,7 @@ function filtered(){
 }
 function ownedButton(item,modal=false){
  const has=owned.has(item.key);
- return `<button type="button" class="own-button${has?' is-owned':''}" ${modal?'id="modal-own"':`data-own="${escapeHTML(item.key)}"`} aria-pressed="${has}" aria-label="${has?'取消擁有':'標記已擁有'}：${escapeHTML(item.name)}">${has?'✓ 已擁有':'＋ 標記擁有'}</button>`;
+ return `<button type="button" class="own-button${has?' is-owned':''}" ${modal?'id="modal-own"':`data-own="${escapeHTML(item.key)}"`} aria-pressed="${has}" aria-label="${collectionEnabled?(has?'取消擁有':'標記已擁有'):'登入後記錄'}：${escapeHTML(item.name)}">${collectionEnabled?(has?'✓ 已擁有':'＋ 標記擁有'):'登入後記錄'}</button>`;
 }
 function render(){
  const results=filtered(),pages=Math.max(1,Math.ceil(results.length/pageSize));page=Math.min(Math.max(1,page),pages);
@@ -3925,6 +4012,8 @@ function render(){
  updateStats();
 }
 function toggleOwned(item,fromModal=false){
+ if(!collectionEnabled){globalThis.CloudUI?.open('signin');return}
+ if(globalThis.CloudController){globalThis.CloudController.setCraft(item.key,owned.has(item.key)?null:'owned');return}
  if(owned.has(item.key))owned.delete(item.key);else{owned.add(item.key);unowned.delete(item.key);}
  const saved=persist();
  render();
@@ -3979,15 +4068,24 @@ $('#import-file').addEventListener('change',async event=>{
  const file=event.target.files[0];if(!file)return;
  try{
   if(file.size>5*1024*1024)throw Error('檔案超過 5 MB');
+  if(!collectionEnabled)throw Error('請先登入帳號再匯入收藏');
   const data=readRecord(await file.text());if(data.app!=='tos-dragonware-collection')throw Error('不是本圖鑑的備份');
   const known=data.owned.filter(key=>validKeys.has(key)),knownUnowned=data.unowned.filter(key=>validKeys.has(key)),unknown=data.owned.length-known.length+data.unowned.length-knownUnowned.length;
-  const before=owned.size;known.forEach(key=>{owned.add(key);unowned.delete(key)});knownUnowned.forEach(key=>{unowned.add(key);owned.delete(key)});const saved=persist();render();
+  const previous={owned:new Set(owned),unowned:new Set(unowned)};known.forEach(key=>{owned.add(key);unowned.delete(key)});knownUnowned.forEach(key=>{unowned.add(key);owned.delete(key)});const saved=true;render();
+  if(globalThis.CloudController){for(const key of known)if(!previous.owned.has(key))await globalThis.CloudController.setCraft(key,'owned');for(const key of knownUnowned)if(!previous.unowned.has(key))await globalThis.CloudController.setCraft(key,'unowned')}
   announce(`已套用紀錄：擁有 ${known.length} 件、未擁有 ${knownUnowned.length} 件${unknown?'；略過 '+unknown+' 筆本版本未收錄的項目':''}。未出現在紀錄中的項目保持原狀。${saved?'已儲存。':'僅暫存，請匯出備份。'}`);
  }catch(error){announce('匯入失敗：'+error.message+'。原收藏紀錄未變更。');}
  finally{event.target.value='';}
 });
 window.addEventListener('storage',event=>{if(event.key!==storageKey||!storageHealthy)return;try{const record=event.newValue?readRecord(event.newValue):{owned:[],unowned:[]};owned=new Set(record.owned);unowned=new Set(record.unowned);render();if(activeItem&&$('#detail-modal').open){$('#modal-owned-slot').innerHTML=ownedButton(activeItem,true);$('#modal-own').addEventListener('click',()=>toggleOwned(activeItem,true));}announce('已同步另一分頁的收藏紀錄。');}catch(error){announce('另一分頁的收藏格式無法讀取，已保留目前紀錄。');}});
 restore();render();
+globalThis.appBridge={
+ getCollectionRecord:()=>({version:2,owned:[...owned],unowned:[...unowned]}),
+ replaceCollection(record){owned=new Set((record.owned||[]).filter(key=>validKeys.has(key)));unowned=new Set((record.unowned||[]).filter(key=>validKeys.has(key)&&!owned.has(key)));render()},
+ clearLegacyCollection(){try{localStorage.removeItem(storageKey)}catch(_){storageHealthy=false}},
+ setCollectionEnabled(enabled){collectionEnabled=!!enabled;$('#ownership').disabled=!collectionEnabled;if(!collectionEnabled){$('#ownership').value='全部'}render()},
+ render,announce
+};
 
 // Browser-local video OCR. Candidates never alter ownership until explicitly selected.
 const inventoryVideo=$('#inventory-video');
@@ -4107,6 +4205,48 @@ $('#scan-apply').addEventListener('click',()=>{
  if(scanBusy)return;let added=0;
  for(const input of $('#scan-results').querySelectorAll('input:checked'))if(validKeys.has(input.value)){if(input.dataset.state!=='unowned'&&!owned.has(input.value)){owned.add(input.value);unowned.delete(input.value);added++;}else if(input.dataset.state==='unowned'){unowned.add(input.value);owned.delete(input.value);}}
  const saved=persist();render();scanStatus('已加入 '+added+' 件收藏。'+(saved?'已保存於此瀏覽器。':'目前僅暫存，請匯出備份。')+'其他收藏未變更。');
+});
+
+'use strict';
+function createCloudController({client,storage,ui,isOnline=()=>navigator.onLine,validKey=()=>true}){
+ let app=null,userId=null,sessionVersion=0;const activeSyncs=new Map;
+ const toRecord=state=>({version:2,owned:[...state.owned],unowned:[...state.unowned]});
+ function applyStatus(record,key,status){const owned=new Set(record.owned),unowned=new Set(record.unowned);owned.delete(key);unowned.delete(key);if(status==='owned')owned.add(key);if(status==='unowned')unowned.add(key);return {version:2,owned:[...owned],unowned:[...unowned]}}
+ async function establish(session){
+  const nextId=session?.user?.id||null;if(nextId!==userId){userId=nextId;sessionVersion++}
+  if(!userId){app.setCollectionEnabled(false);app.replaceCollection({version:2,owned:[],unowned:[]});ui.setAccount(null);ui.setSyncStatus('signed-out','登入後可同步收藏');return}
+  const thisUser=userId;ui.setAccount(session);app.setCollectionEnabled(true);const cached=storage.load(thisUser);if(cached.owned.length||cached.unowned.length)app.replaceCollection(toRecord(cached));await sync('login');
+ }
+ async function migrate(uid,version,rows,state){
+  const local=app.getCollectionRecord(),cloud=new Map(rows.filter(r=>validKey(r.craftKey)).map(r=>[r.craftKey,r.status]));let merged={version:2,owned:[],unowned:[]};
+  for(const [key,status] of cloud)merged=applyStatus(merged,key,status);
+  for(const status of ['owned','unowned'])for(const key of local[status]||[])if(validKey(key)&&!cloud.has(key)){merged=applyStatus(merged,key,status);storage.enqueue(uid,key,status)}
+  state=storage.load(uid);state.owned=merged.owned;state.unowned=merged.unowned;state.migrated=true;storage.save(uid,state);if(userId===uid&&sessionVersion===version){app.replaceCollection(merged);app.clearLegacyCollection?.()}
+ }
+ async function runSync(uid,version){
+  if(!uid)return {status:'failed',uploaded:0,downloaded:0};if(!isOnline()){if(userId===uid)ui.setSyncStatus('offline','離線，變更已暫存');return {status:'offline',uploaded:0,downloaded:0}}
+  if(userId===uid)ui.setSyncStatus('syncing','正在同步…');let state=storage.load(uid),uploaded=0;const fetched=await client.fetchCollection(uid);if(userId!==uid||sessionVersion!==version)return {status:'failed',uploaded:0,downloaded:0};if(fetched.error){ui.setSyncStatus('failed','同步失敗，點擊重試');return {status:'failed',uploaded:0,downloaded:0}}
+  if(!state.migrated){await migrate(uid,version,fetched.data,state);state=storage.load(uid)}else{
+   let record={version:2,owned:[],unowned:[]};for(const row of fetched.data)if(validKey(row.craftKey))record=applyStatus(record,row.craftKey,row.status);for(const m of state.pending)record=applyStatus(record,m.craftKey,m.status);app.replaceCollection(record);state.owned=record.owned;state.unowned=record.unowned;storage.save(uid,state);
+  }
+  for(const mutation of [...storage.load(uid).pending]){if(userId!==uid||sessionVersion!==version)break;const result=mutation.status===null?await client.deleteCraft(uid,mutation.craftKey):await client.upsertCraft(uid,mutation.craftKey,mutation.status);if(!result.error){storage.acknowledge(uid,mutation.craftKey,mutation.sequence);uploaded++}}
+  if(userId!==uid||sessionVersion!==version)return {status:'failed',uploaded,downloaded:0};const failed=storage.load(uid).pending.length>0;ui.setSyncStatus(failed?'failed':'synced',failed?'同步失敗，點擊重試':'已同步');return {status:failed?'failed':'synced',uploaded,downloaded:fetched.data.length};
+ }
+ function sync(){const uid=userId,version=sessionVersion;if(!uid)return Promise.resolve({status:'failed',uploaded:0,downloaded:0});const key=uid+':'+version;if(activeSyncs.has(key))return activeSyncs.get(key);const promise=runSync(uid,version).finally(()=>{if(activeSyncs.get(key)===promise)activeSyncs.delete(key)});activeSyncs.set(key,promise);return promise}
+ async function setCraft(craftKey,status){if(!userId||!validKey(craftKey)){if(!userId)ui.open?.('signin');return}const record=applyStatus(app.getCollectionRecord(),craftKey,status);app.replaceCollection(record);const state=storage.load(userId);state.owned=record.owned;state.unowned=record.unowned;storage.save(userId,state);storage.enqueue(userId,craftKey,status);await sync('change')}
+ async function init(appBridge){app=appBridge;const result=await client.getSession();await establish(result.data?.session||null);client.onAuthStateChange((event,session)=>{if(event==='PASSWORD_RECOVERY')ui.open('update-password');establish(session)});if(globalThis.addEventListener)globalThis.addEventListener('online',()=>sync('online'));if(globalThis.document?.addEventListener)document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')sync('visible')})}
+ return {init,setCraft,sync,isSignedIn:()=>!!userId};
+}
+globalThis.createCloudController=createCloudController;
+
+
+document.addEventListener('DOMContentLoaded',async()=>{
+ let config;try{config=getCloudConfig()}catch(error){CloudUI.disabled(error.message);return}
+ if(!config.enabled){appBridge.setCollectionEnabled(false);CloudUI.disabled('尚未設定雲端同步');return}
+ if(!globalThis.supabase){appBridge.setCollectionEnabled(false);CloudUI.disabled('雲端服務載入失敗');return}
+ const client=createCloudClient(config,globalThis.supabase);CloudUI.init({client});
+ globalThis.CloudController=createCloudController({client,storage:CloudStorage,ui:CloudUI,validKey:key=>validKeys.has(key)});
+ await CloudController.init(appBridge);
 });
 
 </script>

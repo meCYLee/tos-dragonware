@@ -11,16 +11,18 @@
 - 依龍刻類型、模式及收藏狀態篩選
 - 搜尋編號、名稱、技能或適用角色
 - 查看龍刻技能、武裝能力與裝備條件
-- 標記已擁有、未擁有或待確認
+- 使用電子郵件與密碼註冊、登入及重設密碼
+- 登入後標記已擁有、未擁有或待確認，並跨裝置同步
+- 離線時暫存變更，恢復連線後自動重試
 - 將收藏紀錄匯出及匯入為 JSON 備份
 - 從五欄遊戲背包影片輔助辨識擁有狀態
 - 響應式介面：桌面每列 5 張、平板每列 3 張、手機每列 2 張
 
 ## 使用方式
 
-直接開啟 `index.html` 即可使用，不需要安裝套件或連接後端資料庫。
+直接開啟 `index.html` 即可瀏覽。帳號與跨裝置同步使用 Supabase；尚未設定時會保持停用，圖鑑瀏覽不受影響。設定步驟請見 [`SUPABASE_SETUP.md`](SUPABASE_SETUP.md)。
 
-收藏紀錄會儲存在目前瀏覽器中。更換瀏覽器、網址、裝置，或清除瀏覽器資料前，請先使用網站內的「匯出備份」功能。
+登入後，收藏會同步至自己的 Supabase 帳號；瀏覽器同時保留帳號專屬快取與離線待辦。JSON 匯出仍可作為額外備份。
 
 ## 使用 GitHub Pages 發布
 
@@ -62,18 +64,28 @@
 - 影片會在瀏覽器本機處理，不會由本網站上傳到伺服器。
 - 請勿將原始遊戲錄影、帳號畫面或個人收藏備份提交到公開 Repository。
 - 收藏備份可能反映個人遊戲進度，分享前請自行確認內容。
+- 雲端只保存使用者修改過的龍刻識別碼與收藏狀態；資料表以 Row Level Security 隔離帳號。
+- 網頁只可放 Project URL 與 Publishable key，不得放 service role key、secret key、資料庫密碼或 SMTP 密碼。
 
 ## 專案檔案
 
 ```text
 index.html  # 完整網站，包含 HTML、CSS、JavaScript 與圖鑑資料
 README.md   # 專案說明
+SUPABASE_SETUP.md # 帳號與雲端同步設定步驟
 ```
 
 ## 技術說明
 
 - 純 HTML、CSS 與 JavaScript
-- 不需要建置流程
-- 不需要後端或資料庫
-- 收藏資料使用瀏覽器 `localStorage` 保存
+- 原始資料由 `python3 work/build.py` 產生單一 `index.html`
+- 登入與收藏同步使用 Supabase Auth/Postgres
+- 離線快取使用帳號隔離的 `localStorage`
 - 可直接部署至 GitHub Pages 等靜態網站服務
+
+## 部署順序
+
+1. 先依 [`SUPABASE_SETUP.md`](SUPABASE_SETUP.md) 建立 Supabase 並執行資料表設定。
+2. 填入公開的 Project URL 與 Publishable key，重新產生 `index.html`。
+3. 發布到 GitHub Pages，再把正式網址加入 Supabase Site URL 與 Redirect URLs。
+4. 以兩個測試帳號完成權限及跨裝置驗證。
