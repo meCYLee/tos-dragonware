@@ -1,0 +1,25 @@
+{
+  "name": "神魔之塔龍刻圖鑑",
+  "short_name": "神魔龍刻圖鑑",
+  "description": "瀏覽龍刻與武裝龍刻，記錄並同步個人收藏。",
+  "lang": "zh-Hant",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d1212",
+  "theme_color": "#0d1212",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
